@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>보기</title>
+<style>
+:root{--bg:#F2F3F5;--surface:#FFF;--ink:#14171C;--muted:#5E6671;--line:#DDE1E6;--accent:#0E6E66;--err:#CF3329}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1216;--surface:#171B21;--ink:#E6E9ED;--muted:#99A2AE;--line:#2A3039;--accent:#3AB3A6;--err:#FF6B60;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+#gate{max-width:380px;margin:12vh auto 0;padding:0 16px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.box h1{font-size:17px;margin:0}.box p{margin:0;font-size:13px;color:var(--muted)}
+input[type=password]{width:100%;border:1px solid var(--line);background:var(--surface);color:inherit;border-radius:10px;padding:10px 12px;font:inherit}
+label.c{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+button{border:0;background:var(--accent);color:#fff;border-radius:10px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
+button:disabled{opacity:.6}.e{color:var(--err);font-size:13px}
+</style>
+</head>
+<body>
+<div id="gate"><div class="box"><h1>비밀번호</h1><p id="msg">비밀번호를 입력해주세요.</p></div></div>
+<script>
+"use strict";
+const SRC="https://docs.google.com/spreadsheets/d/e/2PACX-1vTaJLZuWaDB65LqAe600VgA8ztkPVy4keN5ejSHVWuYczjYFWhpUsb8VGScp80OJMQ7LyV7WLT6HAAK/pub?gid=0&single=true&output=csv";
+const K="k";let RAW="";
+function sv(v){try{v==null?localStorage.removeItem(K):localStorage.setItem(K,v)}catch(e){}}
+function ld(){try{return localStorage.getItem(K)}catch(e){return null}}
+function u8(b){const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u}
+function join(csv){return csv.split(/\r?\n/).map(l=>l.replace(/^"|"$/g,"").split(",")[0].trim()).join("")}
+async function dec(raw,pw){const p=raw.split(".");const e=new TextEncoder();
+  const b=await crypto.subtle.importKey("raw",e.encode(pw),"PBKDF2",false,["deriveKey"]);
+  const k=await crypto.subtle.deriveKey({name:"PBKDF2",salt:u8(p[1]),iterations:200000,hash:"SHA-256"},b,{name:"AES-GCM",length:256},false,["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:u8(p[2])},k,u8(p[3]))))}
+function gate(m,err){const g=document.getElementById("gate");g.innerHTML=`<form class="box" id="f"><h1>비밀번호</h1><p>공유받은 비밀번호를 입력해주세요.</p>
+  <input id="pw" type="password" autocomplete="current-password" required aria-label="비밀번호"><label class="c"><input type="checkbox" id="rem" checked> 이 기기에서 기억</label>
+  ${err?`<div class="e">${err}</div>`:""}<button type="submit">열기</button></form>`;setTimeout(()=>{const i=document.getElementById("pw");i&&i.focus()},50)}
+function note(t){document.getElementById("gate").innerHTML=`<div class="box"><p>${t}</p></div>`}
+function addScript(src){return new Promise(r=>{const s=document.createElement("script");s.src=src;s.onload=s.onerror=()=>r();document.head.appendChild(s)})}
+async function run(P){
+  if(P.fonts){const l=document.createElement("link");l.rel="stylesheet";l.href=P.fonts;document.head.appendChild(l)}
+  const st=document.createElement("style");st.textContent=P.css;document.head.appendChild(st);
+  document.body.innerHTML=P.html;
+  window.__lock=()=>{sv(null);location.reload()};
+  new Function("DATA",P.js)(P.data);
+  if(P.libs){for(const u of P.libs)await addScript(u);if(window.__rerender)window.__rerender()}
+}
+async function doOpen(pw,rem){try{const P=await dec(RAW,pw);if(rem)sv(pw);await run(P);return true}catch(e){sv(null);return false}}
+document.addEventListener("submit",async e=>{if(e.target.id!=="f")return;e.preventDefault();const b=e.target.querySelector("button");b.disabled=true;b.textContent="여는 중…";
+  if(!(await doOpen(document.getElementById("pw").value,document.getElementById("rem").checked)))gate("","비밀번호가 맞지 않아요.")});
+fetch(SRC+"&t="+Date.now(),{cache:"no-store"}).then(r=>{if(!r.ok)throw 0;return r.text()}).then(async t=>{RAW=join(t);
+  if(!RAW.startsWith("P2.")){note("아직 볼 수 있는 내용이 없어요.");return}
+  if(!(window.crypto&&crypto.subtle)){note("이 브라우저에서는 열 수 없어요.");return}
+  const s=ld();if(s&&await doOpen(s,true))return;gate("")}).catch(()=>note("불러오지 못했어요. 잠시 후 새로고침해주세요."));
+</script>
+</body>
+</html>
